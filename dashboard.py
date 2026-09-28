@@ -1,3 +1,4 @@
+import concurrent.futures
 import time
 import pandas as pd
 import plotly.express as px
@@ -8,16 +9,16 @@ from streamlit_autorefresh import st_autorefresh
 from ta.trend import EMAIndicator
 from ta.volume import VolumeWeightedAveragePrice
 
-st.set_page_config(page_title="20-Stock Intraday Scanner", layout="wide")
+st.set_page_config(page_title="100-Stock Intraday Scanner", layout="wide")
 
 # Auto-refresh dashboard automatically every 10 seconds
 st_autorefresh(interval=10000, key="stock_scanner_refresh")
 
-st.title("⚡ 20-Stock Automated Intraday Scanner & Decision Dashboard")
-st.caption("Live Public Market Scan | Auto-Refreshes Every 10 Seconds")
+st.title("⚡ 100-Stock Automated Intraday Scanner & Decision Dashboard")
+st.caption("Live Nifty 100 Parallel Scan | Auto-Refreshes Every 10 Seconds")
 
-# Watchlist expanded from 5 to 20 liquid stocks
-WATCHLIST_20 = [
+# Nifty 100 Stock List
+WATCHLIST_100 = [
     "RELIANCE.NS",
     "TCS.NS",
     "INFY.NS",
@@ -38,11 +39,91 @@ WATCHLIST_20 = [
     "AXISBANK.NS",
     "TITAN.NS",
     "NTPC.NS",
+    "HCLTECH.NS",
+    "WIPRO.NS",
+    "ULTRACEMCO.NS",
+    "POWERGRID.NS",
+    "M&M.NS",
+    "HINDUNILVR.NS",
+    "COALINDIA.NS",
+    "BAJAJFINSV.NS",
+    "JSWSTEEL.NS",
+    "ADANIPORTS.NS",
+    "TRENT.NS",
+    "GRASIM.NS",
+    "BEL.NS",
+    "HINDALCO.NS",
+    "NESTLEIND.NS",
+    "BPCL.NS",
+    "SIEMENS.NS",
+    "TECHM.NS",
+    "LTIM.NS",
+    "VBL.NS",
+    "HEROMOTOCO.NS",
+    "CIPLA.NS",
+    "BRITANNIA.NS",
+    "EICHERMOT.NS",
+    "HAL.NS",
+    "TATASETEL.NS",
+    "IOC.NS",
+    "DIVISLAB.NS",
+    "DLF.NS",
+    "APOLLOHOSP.NS",
+    "TATACONSUM.NS",
+    "CHOLAFIN.NS",
+    "PIDILITIND.NS",
+    "DRREDDY.NS",
+    "GAIL.NS",
+    "BOSCHLTD.NS",
+    "ABB.NS",
+    "AMBUJACEM.NS",
+    "INDUSINDBK.NS",
+    "SHRIRAMFIN.NS",
+    "BANKBARODA.NS",
+    "CANBK.NS",
+    "TORNTPHARM.NS",
+    "COLPAL.NS",
+    "UNITDSPR.NS",
+    "POLYCAB.NS",
+    "PNB.NS",
+    "VEDL.NS",
+    "SBILIFE.NS",
+    "HDFCLIFE.NS",
+    "ICICIPRULI.NS",
+    "LODHA.NS",
+    "JINDALSTEL.NS",
+    "LUPIN.NS",
+    "TATAELXSI.NS",
+    "ZYDUSLIFE.NS",
+    "TVSMOTOR.NS",
+    "SRF.NS",
+    "MOTHERSON.NS",
+    "AUROPHARMA.NS",
+    "BERGEPAINT.NS",
+    "NAUKRI.NS",
+    "PERSISTENT.NS",
+    "ASTRAL.NS",
+    "CONCOR.NS",
+    "MUTHOOTFIN.NS",
+    "OFSS.NS",
+    "PFC.NS",
+    "RECLTD.NS",
+    "MAXHEALTH.NS",
+    "TIINDIA.NS",
+    "IDEA.NS",
+    "MRF.NS",
+    "BALKRISIND.NS",
+    "PIIND.NS",
+    "ASHOKLEY.NS",
+    "CUMMINSIND.NS",
+    "IDFCFIRSTB.NS",
+    "GMRINFRA.NS",
+    "NMDC.NS",
 ]
 
 # Initialize Session State timers for tracking idle "WAIT" stocks
 if "wait_timers" not in st.session_state:
-    st.session_state.wait_timers = {ticker: time.time() for ticker in WATCHLIST_20}
+    st.session_state.wait_timers = {ticker: time.time() for ticker in WATCHLIST_100}
 
 
 def analyze_stock(ticker):
@@ -107,27 +188,27 @@ def analyze_stock(ticker):
         return None
 
 
-# Execute Scan across all 20 stocks
+# Execute Parallel Multithreaded Scan across 100 stocks
 results = []
 current_time = time.time()
 vip_stock = None
 
-for ticker in WATCHLIST_20:
-    data = analyze_stock(ticker)
+with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+    scanned_data = list(executor.map(analyze_stock, WATCHLIST_100))
 
+for data in scanned_data:
     if data:
-        # 30-Minute Stagnant Timer Logic
+        ticker_full = data["Ticker"] + ".NS"
         if data["Signal"] == "WAIT":
             idle_time = current_time - st.session_state.wait_timers.get(
-                ticker, current_time
+                ticker_full, current_time
             )
-            if idle_time > 1800:  # 30 minutes
+            if idle_time > 1800:
                 data["Condition / Reason"] = (
                     "⚠️ Stagnant >30 mins. Awaiting fresh breakout signal."
                 )
         else:
-            # Lock active trades and reset timer
-            st.session_state.wait_timers[ticker] = current_time
+            st.session_state.wait_timers[ticker_full] = current_time
             if data["VIP"] and not vip_stock:
                 vip_stock = data
 
@@ -147,7 +228,7 @@ if vip_stock:
     st.info(f"**Trigger Reason:** {vip_stock['Condition / Reason']}")
     st.write("---")
 
-# --- 2. MAIN 20-STOCK TABLE ---
+# --- 2. MAIN 100-STOCK TABLE WITH SEARCH FILTER ---
 if results:
     df_res = pd.DataFrame(results)
 
@@ -156,18 +237,30 @@ if results:
         by="Signal", key=lambda x: x.map({"BUY": 1, "SELL": 2, "WAIT": 3})
     )
 
-    st.subheader("📊 Active 20-Stock Watchlist Monitor")
-    st.dataframe(df_res, use_container_width=True)
+    st.subheader(f"📊 Active 100-Stock Watchlist Monitor ({len(df_res)} Loaded)")
+
+    # Live Search Filter
+    search_query = st.text_input(
+        "🔍 Search Ticker or Signal (e.g., RELIANCE or BUY):", ""
+    )
+    if search_query:
+        df_filtered = df_res[
+            df_res["Ticker"].str.contains(search_query.upper(), na=False)
+            | df_res["Signal"].str.contains(search_query.upper(), na=False)
+        ]
+        st.dataframe(df_filtered, use_container_width=True)
+    else:
+        st.dataframe(df_res, use_container_width=True)
 
     # --- 3. GRAPHICAL CHARTS SECTION ---
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write("##### 20-Stock Market Sentiment Breakdown")
+        st.write("##### 100-Stock Market Sentiment Breakdown")
         fig_pie = px.pie(
             df_res,
             names="Signal",
-            title="Signal Distribution (BUY / SELL / WAIT)",
+            title="Signal Distribution Across 100 Stocks",
             color="Signal",
             color_discrete_map={
                 "BUY": "#23C552",
@@ -178,13 +271,14 @@ if results:
         st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
-        st.write("##### Relative Volume Comparison (RVOL)")
+        st.write("##### Top 15 Volume Surges (RVOL)")
+        top_vol_df = df_res.sort_values(by="RVOL", ascending=False).head(15)
         fig_bar = px.bar(
-            df_res,
+            top_vol_df,
             x="Ticker",
             y="RVOL",
             color="Signal",
-            title="Volume Surges across 20 Stocks (>1.5x = High Volatility)",
+            title="Highest Volume Activity (>1.5x)",
             color_discrete_map={
                 "BUY": "#23C552",
                 "SELL": "#F84960",
