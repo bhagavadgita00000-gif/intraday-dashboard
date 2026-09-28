@@ -2,16 +2,19 @@ import time
 import pandas as pd
 import streamlit as st
 import yfinance as yf
-from ta.trend import EMAIndicator, MACD
+from streamlit_autorefresh import st_autorefresh
+from ta.trend import EMAIndicator
 from ta.volume import VolumeWeightedAveragePrice
 
-st.set_page_config(
-    page_title="Intraday Scanner Dashboard", layout="wide"
-)
+st.set_page_config(page_title="Intraday Scanner Dashboard", layout="wide")
+
+# ⚡ AUTO-REFRESH TRIGGER: Refreshes page automatically every 10 seconds (10000 ms)
+count = st_autorefresh(interval=10000, limit=None, key="stock_scanner_refresh")
+
 st.title("⚡ Automated Intraday Stock Scanner & Decision Dashboard")
 st.caption(
-    "Live scanning powered by free public market feeds (Auto-refreshes every 15"
-    " seconds)"
+    f"Live scanning active | Auto-refreshed count: {count} | Updates every 10"
+    " seconds"
 )
 
 # Watchlist of high-volume liquid stocks
@@ -47,7 +50,6 @@ def analyze_stock(ticker):
         df["EMA_9"] = EMAIndicator(close=df["Close"], window=9).ema_indicator()
 
         latest = df.iloc[-1]
-        prev = df.iloc[-2]
 
         price = round(float(latest["Close"]), 2)
         vwap = round(float(latest["VWAP"]), 2)
@@ -71,10 +73,11 @@ def analyze_stock(ticker):
             )
             entry = round(price * 1.001, 2)
             sl = round(min(vwap, price * 0.993), 2)
-            target = round(entry + (entry - sl) * 2, 2)  # 1:2 Risk-Reward Ratio
+            target = round(entry + (entry - sl) * 2, 2)
             next_step = (
-                f"HOLD: Momentum bullish. If price hits ₹{round(entry + (target-entry)*0.5, 2)},"
-                f" trail SL to ₹{entry} (Break-even)."
+                f"HOLD: Momentum bullish. If price hits"
+                f" ₹{round(entry + (target-entry)*0.5, 2)}, trail SL to"
+                f" ₹{entry} (Break-even)."
             )
 
         elif price < vwap and price < ema9 and rvol > 1.5:
@@ -87,8 +90,8 @@ def analyze_stock(ticker):
             sl = round(max(vwap, price * 1.007), 2)
             target = round(entry - (sl - entry) * 2, 2)
             next_step = (
-                "HOLD: Downward trend intact. Exit immediately if price recovers"
-                f" above VWAP (₹{vwap})."
+                "HOLD: Downward trend intact. Exit immediately if price"
+                f" recovers above VWAP (₹{vwap})."
             )
 
         return {
@@ -102,7 +105,7 @@ def analyze_stock(ticker):
             "Target 1": target,
             "Active Position Management / Next Step": next_step,
         }
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -116,7 +119,6 @@ for ticker in WATCHLIST:
 # Output Table
 if results:
     res_df = pd.DataFrame(results)
-    # Filter for active signals first
     res_df = res_df.sort_values(
         by="Signal", key=lambda x: x.map({"BUY": 1, "SELL": 2, "WAIT": 3})
     ).head(5)
@@ -124,6 +126,6 @@ if results:
 
 st.write("---")
 st.info(
-    "💡 Manual Execution Guide: Place market/limit order manually on your broker"
-    " app once a BUY/SELL signal displays RVOL > 1.5."
-  )
+    "💡 Auto-refresh active: Screen updates automatically every 10 seconds with"
+    " live tick prices."
+)
