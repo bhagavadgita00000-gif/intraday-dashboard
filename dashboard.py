@@ -1,4 +1,4 @@
-  import time
+import time
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -142,7 +142,6 @@ results = []
 if data_batch is not None and not data_batch.empty:
     for ticker in WATCHLIST_100:
         try:
-            # Extract ticker dataframe
             if len(WATCHLIST_100) > 1:
                 if ticker in data_batch.columns.levels[0]:
                     df = data_batch[ticker].dropna(how="all")
@@ -154,7 +153,6 @@ if data_batch is not None and not data_batch.empty:
             if df.empty or len(df) < 5:
                 continue
 
-            # Calculate technical indicators
             vwap_series = VolumeWeightedAveragePrice(
                 high=df["High"],
                 low=df["Low"],
@@ -256,4 +254,4 @@ if results:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 else:
-    st.warning("⚠️ Market data temporary delay or market closed. Retrying...")       
+    st.warning("⚠️ Market data temporary delay or market closed. Retrying...")
