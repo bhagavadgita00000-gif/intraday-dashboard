@@ -8,16 +8,16 @@ from streamlit_autorefresh import st_autorefresh
 from ta.trend import EMAIndicator
 from ta.volume import VolumeWeightedAveragePrice
 
-st.set_page_config(page_title="Advanced Live Intraday Scanner", layout="wide")
+st.set_page_config(page_title="20-Stock Intraday Scanner", layout="wide")
 
-# Auto-refresh app every 10 seconds (10,000 ms)
+# Auto-refresh dashboard automatically every 10 seconds
 st_autorefresh(interval=10000, key="stock_scanner_refresh")
 
-st.title("⚡ Dynamic Intraday Scanner & Decision Dashboard")
-st.caption("Free Live Public Market Scan | Auto-Refreshes Every 10 Seconds")
+st.title("⚡ 20-Stock Automated Intraday Scanner & Decision Dashboard")
+st.caption("Live Public Market Scan | Auto-Refreshes Every 10 Seconds")
 
-# Broader pool to rotate stocks from
-EXTENDED_UNIVERSE = [
+# Watchlist expanded from 5 to 20 liquid stocks
+WATCHLIST_20 = [
     "RELIANCE.NS",
     "TCS.NS",
     "INFY.NS",
@@ -26,20 +26,23 @@ EXTENDED_UNIVERSE = [
     "TATAMOTORS.NS",
     "SBIN.NS",
     "BHARTIARTL.NS",
-    "AXISBANK.NS",
     "ITC.NS",
+    "BAJFINANCE.NS",
     "LT.NS",
     "KOTAKBANK.NS",
+    "TATASTEEL.NS",
+    "MARUTI.NS",
+    "SUNPHARMA.NS",
+    "ADANIENT.NS",
+    "ONGC.NS",
+    "AXISBANK.NS",
+    "TITAN.NS",
+    "NTPC.NS",
 ]
 
-# Initialize Session State memory
-if "watchlist" not in st.session_state:
-    st.session_state.watchlist = EXTENDED_UNIVERSE[:5]
-
+# Initialize Session State timers for tracking idle "WAIT" stocks
 if "wait_timers" not in st.session_state:
-    st.session_state.wait_timers = {
-        ticker: time.time() for ticker in st.session_state.watchlist
-    }
+    st.session_state.wait_timers = {ticker: time.time() for ticker in WATCHLIST_20}
 
 
 def analyze_stock(ticker):
@@ -63,83 +66,68 @@ def analyze_stock(ticker):
         price = round(float(latest["Close"]), 2)
         vwap = round(float(latest["VWAP"]), 2)
         ema9 = round(float(latest["EMA_9"]), 2)
-        rvol = round(float(latest["Volume"] / df["Volume"].mean()), 2)
+        avg_vol = df["Volume"].mean()
+        rvol = round(float(latest["Volume"] / avg_vol), 2)
 
         signal = "WAIT"
-        reason = "Price consolidating near VWAP."
+        reason = "Consolidating near VWAP; awaiting volume surge."
         entry, sl, target = price, price, price
         vip_eligible = False
 
         if price > vwap and price > ema9 and rvol > 1.5:
             signal = "BUY"
-            reason = f"Breakout above VWAP (₹{vwap}) with {rvol}x Volume Surge."
+            reason = f"Price above VWAP (₹{vwap}) & 9-EMA with {rvol}x volume surge."
             entry = round(price * 1.001, 2)
             sl = round(min(vwap, price * 0.993), 2)
             target = round(entry + (entry - sl) * 2, 2)
-
             if rvol > 2.5:
                 vip_eligible = True
 
         elif price < vwap and price < ema9 and rvol > 1.5:
             signal = "SELL"
-            reason = f"Breakdown below VWAP (₹{vwap}) with {rvol}x Selling Surge."
+            reason = f"Price broke below VWAP (₹{vwap}) on heavy selling ({rvol}x)."
             entry = round(price * 0.999, 2)
             sl = round(max(vwap, price * 1.007), 2)
             target = round(entry - (sl - entry) * 2, 2)
-
             if rvol > 2.5:
                 vip_eligible = True
 
         return {
             "Ticker": ticker.replace(".NS", ""),
             "Signal": signal,
-            "Price": price,
+            "Price (₹)": price,
             "RVOL": rvol,
-            "Reason": reason,
-            "Entry": entry,
-            "SL": sl,
-            "Target": target,
+            "Condition / Reason": reason,
+            "Entry Point": entry,
+            "Stop-Loss (SL)": sl,
+            "Target 1": target,
             "VIP": vip_eligible,
         }
     except Exception:
         return None
 
 
-# Execute Scan
+# Execute Scan across all 20 stocks
 results = []
 current_time = time.time()
 vip_stock = None
 
-for i, ticker in enumerate(list(st.session_state.watchlist)):
+for ticker in WATCHLIST_20:
     data = analyze_stock(ticker)
 
     if data:
-        # Check if stock has been in "WAIT" for > 30 minutes (1800 seconds)
+        # 30-Minute Stagnant Timer Logic
         if data["Signal"] == "WAIT":
             idle_time = current_time - st.session_state.wait_timers.get(
                 ticker, current_time
             )
-
-            if idle_time > 1800:
-                # Find replacement stock not currently displayed
-                unused_stocks = [
-                    s
-                    for s in EXTENDED_UNIVERSE
-                    if s not in st.session_state.watchlist
-                ]
-                if unused_stocks:
-                    new_ticker = unused_stocks[0]
-                    st.session_state.watchlist[i] = new_ticker
-                    st.session_state.wait_timers[new_ticker] = current_time
-                    st.toast(
-                        f"🔄 Replaced stagnant stock {ticker.replace('.NS','')} with"
-                        f" {new_ticker.replace('.NS','')}"
-                    )
-                    continue
+            if idle_time > 1800:  # 30 minutes
+                data["Condition / Reason"] = (
+                    "⚠️ Stagnant >30 mins. Awaiting fresh breakout signal."
+                )
         else:
-            # Lock active trade signals (reset wait timer)
+            # Lock active trades and reset timer
             st.session_state.wait_timers[ticker] = current_time
-
             if data["VIP"] and not vip_stock:
                 vip_stock = data
 
@@ -147,31 +135,39 @@ for i, ticker in enumerate(list(st.session_state.watchlist)):
 
 # --- 1. VIP SPOTLIGHT SECTION ---
 if vip_stock:
-    st.success("🔥 VIP HIGH-CONVICTION OPPORTUNITY DETECTED")
+    st.success("🔥 VIP HIGH-CONVICTION TRADE DETECTED")
     vcol1, vcol2, vcol3, vcol4 = st.columns(4)
     vcol1.metric("Stock Ticker", vip_stock["Ticker"])
     vcol2.metric("Signal", vip_stock["Signal"])
-    vcol3.metric("Entry Point", f"₹{vip_stock['Entry']}")
-    vcol4.metric("Target / SL", f"₹{vip_stock['Target']} / ₹{vip_stock['SL']}")
-    st.info(f"**Trigger Reason:** {vip_stock['Reason']}")
+    vcol3.metric("Entry Point", f"₹{vip_stock['Entry Point']}")
+    vcol4.metric(
+        "Target / SL",
+        f"₹{vip_stock['Target 1']} / ₹{vip_stock['Stop-Loss (SL)']}",
+    )
+    st.info(f"**Trigger Reason:** {vip_stock['Condition / Reason']}")
     st.write("---")
 
-# --- 2. MAIN DASHBOARD DATA TABLE ---
+# --- 2. MAIN 20-STOCK TABLE ---
 if results:
     df_res = pd.DataFrame(results)
 
-    st.subheader("📊 Top Active Stocks Monitor")
+    # Sort table so actionable BUY and SELL signals float to the top
+    df_res = df_res.sort_values(
+        by="Signal", key=lambda x: x.map({"BUY": 1, "SELL": 2, "WAIT": 3})
+    )
+
+    st.subheader("📊 Active 20-Stock Watchlist Monitor")
     st.dataframe(df_res, use_container_width=True)
 
     # --- 3. GRAPHICAL CHARTS SECTION ---
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write("##### Signal Distribution Ratio")
+        st.write("##### 20-Stock Market Sentiment Breakdown")
         fig_pie = px.pie(
             df_res,
             names="Signal",
-            title="Market Sentiment Breakdown",
+            title="Signal Distribution (BUY / SELL / WAIT)",
             color="Signal",
             color_discrete_map={
                 "BUY": "#23C552",
@@ -182,14 +178,17 @@ if results:
         st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
-        st.write("##### Price vs Target Comparison")
-        fig_bar = go.Figure(
-            data=[
-                go.Bar(name="Current Price", x=df_res["Ticker"], y=df_res["Price"]),
-                go.Bar(name="Target Price", x=df_res["Ticker"], y=df_res["Target"]),
-            ]
-        )
-        fig_bar.update_layout(
-            barmode="group", title="Live Price Target Projection"
+        st.write("##### Relative Volume Comparison (RVOL)")
+        fig_bar = px.bar(
+            df_res,
+            x="Ticker",
+            y="RVOL",
+            color="Signal",
+            title="Volume Surges across 20 Stocks (>1.5x = High Volatility)",
+            color_discrete_map={
+                "BUY": "#23C552",
+                "SELL": "#F84960",
+                "WAIT": "#FACC15",
+            },
         )
         st.plotly_chart(fig_bar, use_container_width=True)
