@@ -1,5 +1,4 @@
-import concurrent.futures
-import time
+  import time
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -10,12 +9,13 @@ from ta.volume import VolumeWeightedAveragePrice
 
 st.set_page_config(page_title="100-Stock Intraday Scanner", layout="wide")
 
-# Safe auto-refresh every 30 seconds to prevent rate-limiting and browser crashes
+# Auto-refresh every 30 seconds cleanly
 st_autorefresh(interval=30000, key="stock_scanner_refresh")
 
-st.title("⚡ 100-Stock Automated Intraday Scanner & Decision Dashboard")
-st.caption("Live Nifty 100 Parallel Scan | Auto-Refreshes Every 30 Seconds")
+st.title("⚡ 100-Stock Automated Intraday Scanner")
+st.caption("Live Bulk Scan | Auto-Refreshes Every 30 Seconds")
 
+# Nifty 100 List
 WATCHLIST_100 = [
     "RELIANCE.NS",
     "TCS.NS",
@@ -120,81 +120,95 @@ WATCHLIST_100 = [
 
 
 @st.cache_data(ttl=25)
-def fetch_single_stock(ticker):
-    """Fetch individual stock data safely with error isolation."""
+def fetch_all_stocks():
+    """Bulk download all tickers in a single yfinance request to avoid IP rate limits."""
     try:
-        df = yf.download(
-            ticker, period="1d", interval="5m", progress=False, timeout=5
+        data = yf.download(
+            tickers=WATCHLIST_100,
+            period="1d",
+            interval="5m",
+            group_by="ticker",
+            progress=False,
+            threads=True,
         )
-        if df.empty or len(df) < 5:
-            return None
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-
-        df["VWAP"] = VolumeWeightedAveragePrice(
-            high=df["High"],
-            low=df["Low"],
-            close=df["Close"],
-            volume=df["Volume"],
-        ).volume_weighted_average_price()
-        df["EMA_9"] = EMAIndicator(close=df["Close"], window=9).ema_indicator()
-
-        latest = df.iloc[-1]
-        price = round(float(latest["Close"]), 2)
-        vwap = round(float(latest["VWAP"]), 2)
-        ema9 = round(float(latest["EMA_9"]), 2)
-        avg_vol = df["Volume"].mean()
-        rvol = (
-            round(float(latest["Volume"] / avg_vol), 2) if avg_vol > 0 else 1.0
-        )
-
-        signal = "WAIT"
-        reason = "Consolidating near VWAP; awaiting volume surge."
-        entry, sl, target = price, price, price
-
-        if price > vwap and price > ema9 and rvol > 1.5:
-            signal = "BUY"
-            reason = f"Price above VWAP (₹{vwap}) & 9-EMA with {rvol}x volume surge."
-            entry = round(price * 1.001, 2)
-            sl = round(min(vwap, price * 0.993), 2)
-            target = round(entry + (entry - sl) * 2, 2)
-
-        elif price < vwap and price < ema9 and rvol > 1.5:
-            signal = "SELL"
-            reason = f"Price broke below VWAP (₹{vwap}) on heavy selling ({rvol}x)."
-            entry = round(price * 0.999, 2)
-            sl = round(max(vwap, price * 1.007), 2)
-            target = round(entry - (sl - entry) * 2, 2)
-
-        return {
-            "Ticker": ticker.replace(".NS", ""),
-            "Signal": signal,
-            "Price (₹)": price,
-            "RVOL": rvol,
-            "Condition / Reason": reason,
-            "Entry Point": entry,
-            "Stop-Loss (SL)": sl,
-            "Target 1": target,
-        }
+        return data
     except Exception:
         return None
 
 
-# Fetch data in threads with lower worker count to protect connection limit
+data_batch = fetch_all_stocks()
 results = []
-with st.spinner("Fetching live market data for 100 stocks..."):
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        scanned_data = list(executor.map(fetch_single_stock, WATCHLIST_100))
 
-for item in scanned_data:
-    if item is not None:
-        results.append(item)
+if data_batch is not None and not data_batch.empty:
+    for ticker in WATCHLIST_100:
+        try:
+            # Extract ticker dataframe
+            if len(WATCHLIST_100) > 1:
+                if ticker in data_batch.columns.levels[0]:
+                    df = data_batch[ticker].dropna(how="all")
+                else:
+                    continue
+            else:
+                df = data_batch
+
+            if df.empty or len(df) < 5:
+                continue
+
+            # Calculate technical indicators
+            vwap_series = VolumeWeightedAveragePrice(
+                high=df["High"],
+                low=df["Low"],
+                close=df["Close"],
+                volume=df["Volume"],
+            ).volume_weighted_average_price()
+
+            ema_series = EMAIndicator(close=df["Close"], window=9).ema_indicator()
+
+            latest_close = float(df["Close"].iloc[-1])
+            latest_vwap = float(vwap_series.iloc[-1])
+            latest_ema = float(ema_series.iloc[-1])
+            latest_vol = float(df["Volume"].iloc[-1])
+            avg_vol = float(df["Volume"].mean())
+
+            rvol = round(latest_vol / avg_vol, 2) if avg_vol > 0 else 1.0
+            price = round(latest_close, 2)
+            vwap = round(latest_vwap, 2)
+
+            signal = "WAIT"
+            reason = "Consolidating near VWAP; awaiting volume surge."
+            entry, sl, target = price, price, price
+
+            if price > vwap and price > latest_ema and rvol > 1.5:
+                signal = "BUY"
+                reason = f"Price above VWAP (₹{vwap}) & 9-EMA with {rvol}x volume surge."
+                entry = round(price * 1.001, 2)
+                sl = round(min(vwap, price * 0.993), 2)
+                target = round(entry + (entry - sl) * 2, 2)
+
+            elif price < vwap and price < latest_ema and rvol > 1.5:
+                signal = "SELL"
+                reason = f"Price broke below VWAP (₹{vwap}) on heavy selling ({rvol}x)."
+                entry = round(price * 0.999, 2)
+                sl = round(max(vwap, price * 1.007), 2)
+                target = round(entry - (sl - entry) * 2, 2)
+
+            results.append(
+                {
+                    "Ticker": ticker.replace(".NS", ""),
+                    "Signal": signal,
+                    "Price (₹)": price,
+                    "RVOL": rvol,
+                    "Condition / Reason": reason,
+                    "Entry Point": entry,
+                    "Stop-Loss (SL)": sl,
+                    "Target 1": target,
+                }
+            )
+        except Exception:
+            continue
 
 if results:
     df_res = pd.DataFrame(results)
-
-    # Float BUY and SELL to top
     df_res = df_res.sort_values(
         by="Signal", key=lambda x: x.map({"BUY": 1, "SELL": 2, "WAIT": 3})
     )
@@ -242,6 +256,4 @@ if results:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 else:
-    st.warning(
-        "⚠️ Live market data temporary delay or market closed. Retrying automatically..."
-    )
+    st.warning("⚠️ Market data temporary delay or market closed. Retrying...")       
