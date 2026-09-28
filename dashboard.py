@@ -2,7 +2,6 @@ import concurrent.futures
 import time
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
@@ -11,13 +10,12 @@ from ta.volume import VolumeWeightedAveragePrice
 
 st.set_page_config(page_title="100-Stock Intraday Scanner", layout="wide")
 
-# Auto-refresh dashboard automatically every 10 seconds
-st_autorefresh(interval=10000, key="stock_scanner_refresh")
+# Safe auto-refresh every 30 seconds to prevent rate-limiting and browser crashes
+st_autorefresh(interval=30000, key="stock_scanner_refresh")
 
 st.title("⚡ 100-Stock Automated Intraday Scanner & Decision Dashboard")
-st.caption("Live Nifty 100 Parallel Scan | Auto-Refreshes Every 10 Seconds")
+st.caption("Live Nifty 100 Parallel Scan | Auto-Refreshes Every 30 Seconds")
 
-# Nifty 100 Stock List
 WATCHLIST_100 = [
     "RELIANCE.NS",
     "TCS.NS",
@@ -64,7 +62,6 @@ WATCHLIST_100 = [
     "BRITANNIA.NS",
     "EICHERMOT.NS",
     "HAL.NS",
-    "TATASETEL.NS",
     "IOC.NS",
     "DIVISLAB.NS",
     "DLF.NS",
@@ -121,15 +118,15 @@ WATCHLIST_100 = [
     "NMDC.NS",
 ]
 
-# Initialize Session State timers for tracking idle "WAIT" stocks
-if "wait_timers" not in st.session_state:
-    st.session_state.wait_timers = {ticker: time.time() for ticker in WATCHLIST_100}
 
-
-def analyze_stock(ticker):
+@st.cache_data(ttl=25)
+def fetch_single_stock(ticker):
+    """Fetch individual stock data safely with error isolation."""
     try:
-        df = yf.download(ticker, period="1d", interval="5m", progress=False)
-        if len(df) < 10:
+        df = yf.download(
+            ticker, period="1d", interval="5m", progress=False, timeout=5
+        )
+        if df.empty or len(df) < 5:
             return None
 
         if isinstance(df.columns, pd.MultiIndex):
@@ -148,12 +145,13 @@ def analyze_stock(ticker):
         vwap = round(float(latest["VWAP"]), 2)
         ema9 = round(float(latest["EMA_9"]), 2)
         avg_vol = df["Volume"].mean()
-        rvol = round(float(latest["Volume"] / avg_vol), 2)
+        rvol = (
+            round(float(latest["Volume"] / avg_vol), 2) if avg_vol > 0 else 1.0
+        )
 
         signal = "WAIT"
         reason = "Consolidating near VWAP; awaiting volume surge."
         entry, sl, target = price, price, price
-        vip_eligible = False
 
         if price > vwap and price > ema9 and rvol > 1.5:
             signal = "BUY"
@@ -161,8 +159,6 @@ def analyze_stock(ticker):
             entry = round(price * 1.001, 2)
             sl = round(min(vwap, price * 0.993), 2)
             target = round(entry + (entry - sl) * 2, 2)
-            if rvol > 2.5:
-                vip_eligible = True
 
         elif price < vwap and price < ema9 and rvol > 1.5:
             signal = "SELL"
@@ -170,8 +166,6 @@ def analyze_stock(ticker):
             entry = round(price * 0.999, 2)
             sl = round(max(vwap, price * 1.007), 2)
             target = round(entry - (sl - entry) * 2, 2)
-            if rvol > 2.5:
-                vip_eligible = True
 
         return {
             "Ticker": ticker.replace(".NS", ""),
@@ -182,67 +176,32 @@ def analyze_stock(ticker):
             "Entry Point": entry,
             "Stop-Loss (SL)": sl,
             "Target 1": target,
-            "VIP": vip_eligible,
         }
     except Exception:
         return None
 
 
-# Execute Parallel Multithreaded Scan across 100 stocks
+# Fetch data in threads with lower worker count to protect connection limit
 results = []
-current_time = time.time()
-vip_stock = None
+with st.spinner("Fetching live market data for 100 stocks..."):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        scanned_data = list(executor.map(fetch_single_stock, WATCHLIST_100))
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-    scanned_data = list(executor.map(analyze_stock, WATCHLIST_100))
+for item in scanned_data:
+    if item is not None:
+        results.append(item)
 
-for data in scanned_data:
-    if data:
-        ticker_full = data["Ticker"] + ".NS"
-        if data["Signal"] == "WAIT":
-            idle_time = current_time - st.session_state.wait_timers.get(
-                ticker_full, current_time
-            )
-            if idle_time > 1800:
-                data["Condition / Reason"] = (
-                    "⚠️ Stagnant >30 mins. Awaiting fresh breakout signal."
-                )
-        else:
-            st.session_state.wait_timers[ticker_full] = current_time
-            if data["VIP"] and not vip_stock:
-                vip_stock = data
-
-        results.append(data)
-
-# --- 1. VIP SPOTLIGHT SECTION ---
-if vip_stock:
-    st.success("🔥 VIP HIGH-CONVICTION TRADE DETECTED")
-    vcol1, vcol2, vcol3, vcol4 = st.columns(4)
-    vcol1.metric("Stock Ticker", vip_stock["Ticker"])
-    vcol2.metric("Signal", vip_stock["Signal"])
-    vcol3.metric("Entry Point", f"₹{vip_stock['Entry Point']}")
-    vcol4.metric(
-        "Target / SL",
-        f"₹{vip_stock['Target 1']} / ₹{vip_stock['Stop-Loss (SL)']}",
-    )
-    st.info(f"**Trigger Reason:** {vip_stock['Condition / Reason']}")
-    st.write("---")
-
-# --- 2. MAIN 100-STOCK TABLE WITH SEARCH FILTER ---
 if results:
     df_res = pd.DataFrame(results)
 
-    # Sort table so actionable BUY and SELL signals float to the top
+    # Float BUY and SELL to top
     df_res = df_res.sort_values(
         by="Signal", key=lambda x: x.map({"BUY": 1, "SELL": 2, "WAIT": 3})
     )
 
-    st.subheader(f"📊 Active 100-Stock Watchlist Monitor ({len(df_res)} Loaded)")
+    st.subheader(f"📊 Active Watchlist Scanner ({len(df_res)} Loaded)")
 
-    # Live Search Filter
-    search_query = st.text_input(
-        "🔍 Search Ticker or Signal (e.g., RELIANCE or BUY):", ""
-    )
+    search_query = st.text_input("🔍 Filter Ticker or Signal:", "")
     if search_query:
         df_filtered = df_res[
             df_res["Ticker"].str.contains(search_query.upper(), na=False)
@@ -252,15 +211,12 @@ if results:
     else:
         st.dataframe(df_res, use_container_width=True)
 
-    # --- 3. GRAPHICAL CHARTS SECTION ---
     col1, col2 = st.columns(2)
-
     with col1:
-        st.write("##### 100-Stock Market Sentiment Breakdown")
         fig_pie = px.pie(
             df_res,
             names="Signal",
-            title="Signal Distribution Across 100 Stocks",
+            title="Signal Distribution",
             color="Signal",
             color_discrete_map={
                 "BUY": "#23C552",
@@ -271,14 +227,13 @@ if results:
         st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
-        st.write("##### Top 15 Volume Surges (RVOL)")
         top_vol_df = df_res.sort_values(by="RVOL", ascending=False).head(15)
         fig_bar = px.bar(
             top_vol_df,
             x="Ticker",
             y="RVOL",
             color="Signal",
-            title="Highest Volume Activity (>1.5x)",
+            title="Top 15 Volume Surges (RVOL)",
             color_discrete_map={
                 "BUY": "#23C552",
                 "SELL": "#F84960",
@@ -286,3 +241,7 @@ if results:
             },
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+else:
+    st.warning(
+        "⚠️ Live market data temporary delay or market closed. Retrying automatically..."
+    )
