@@ -1,6 +1,6 @@
 streamlit
+streamlit-autorefresh
+yfinance>=0.2.38
 pandas
-yfinance
 ta
 plotly
-streamlit-autorefresh
