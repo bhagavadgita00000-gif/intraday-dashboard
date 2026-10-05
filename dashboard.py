@@ -12,109 +12,30 @@ st.set_page_config(page_title="100-Stock Locked Trade Scanner", layout="wide")
 # Auto-refresh every 15 seconds
 st_autorefresh(interval=15000, key="stock_scanner_refresh")
 
-st.title("⚡ 100-Stock Stateful Intraday Decision Scanner")
+st.title("⚡ 100-Stock Automated Intraday Scanner")
 st.caption("Live Scan with Target/SL Trade Lock | Auto-Refreshes Every 15 Seconds")
 
 WATCHLIST_100 = [
-    "RELIANCE.NS",
-    "TCS.NS",
-    "INFY.NS",
-    "HDFCBANK.NS",
-    "ICICIBANK.NS",
-    "TATAMOTORS.NS",
-    "SBIN.NS",
-    "BHARTIARTL.NS",
-    "ITC.NS",
-    "BAJFINANCE.NS",
-    "LT.NS",
-    "KOTAKBANK.NS",
-    "TATASTEEL.NS",
-    "MARUTI.NS",
-    "SUNPHARMA.NS",
-    "ADANIENT.NS",
-    "ONGC.NS",
-    "AXISBANK.NS",
-    "TITAN.NS",
-    "NTPC.NS",
-    "HCLTECH.NS",
-    "WIPRO.NS",
-    "ULTRACEMCO.NS",
-    "POWERGRID.NS",
-    "M&M.NS",
-    "HINDUNILVR.NS",
-    "COALINDIA.NS",
-    "BAJAJFINSV.NS",
-    "JSWSTEEL.NS",
-    "ADANIPORTS.NS",
-    "TRENT.NS",
-    "GRASIM.NS",
-    "BEL.NS",
-    "HINDALCO.NS",
-    "NESTLEIND.NS",
-    "BPCL.NS",
-    "SIEMENS.NS",
-    "TECHM.NS",
-    "LTIM.NS",
-    "VBL.NS",
-    "HEROMOTOCO.NS",
-    "CIPLA.NS",
-    "BRITANNIA.NS",
-    "EICHERMOT.NS",
-    "HAL.NS",
-    "IOC.NS",
-    "DIVISLAB.NS",
-    "DLF.NS",
-    "APOLLOHOSP.NS",
-    "TATACONSUM.NS",
-    "CHOLAFIN.NS",
-    "PIDILITIND.NS",
-    "DRREDDY.NS",
-    "GAIL.NS",
-    "BOSCHLTD.NS",
-    "ABB.NS",
-    "AMBUJACEM.NS",
-    "INDUSINDBK.NS",
-    "SHRIRAMFIN.NS",
-    "BANKBARODA.NS",
-    "CANBK.NS",
-    "TORNTPHARM.NS",
-    "COLPAL.NS",
-    "UNITDSPR.NS",
-    "POLYCAB.NS",
-    "PNB.NS",
-    "VEDL.NS",
-    "SBILIFE.NS",
-    "HDFCLIFE.NS",
-    "ICICIPRULI.NS",
-    "LODHA.NS",
-    "JINDALSTEL.NS",
-    "LUPIN.NS",
-    "TATAELXSI.NS",
-    "ZYDUSLIFE.NS",
-    "TVSMOTOR.NS",
-    "SRF.NS",
-    "MOTHERSON.NS",
-    "AUROPHARMA.NS",
-    "BERGEPAINT.NS",
-    "NAUKRI.NS",
-    "PERSISTENT.NS",
-    "ASTRAL.NS",
-    "CONCOR.NS",
-    "MUTHOOTFIN.NS",
-    "OFSS.NS",
-    "PFC.NS",
-    "RECLTD.NS",
-    "MAXHEALTH.NS",
-    "TIINDIA.NS",
-    "IDEA.NS",
-    "MRF.NS",
-    "BALKRISIND.NS",
-    "PIIND.NS",
-    "ASHOKLEY.NS",
-    "CUMMINSIND.NS",
-    "IDFCFIRSTB.NS",
-    "GMRINFRA.NS",
-    "NMDC.NS",
+    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
+    "TATAMOTORS.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "BAJFINANCE.NS",
+    "LT.NS", "KOTAKBANK.NS", "TATASTEEL.NS", "MARUTI.NS", "SUNPHARMA.NS",
+    "ADANIENT.NS", "ONGC.NS", "AXISBANK.NS", "TITAN.NS", "NTPC.NS",
+    "HCLTECH.NS", "WIPRO.NS", "ULTRACEMCO.NS", "POWERGRID.NS", "M&M.NS",
+    "HINDUNILVR.NS", "COALINDIA.NS", "BAJAJFINSV.NS", "JSWSTEEL.NS", "ADANIPORTS.NS",
+    "TRENT.NS", "GRASIM.NS", "BEL.NS", "HINDALCO.NS", "NESTLEIND.NS",
+    "BPCL.NS", "SIEMENS.NS", "TECHM.NS", "LTIM.NS", "VBL.NS",
+    "HEROMOTOCO.NS", "CIPLA.NS", "BRITANNIA.NS", "EICHERMOT.NS", "HAL.NS",
+    "IOC.NS", "DIVISLAB.NS", "DLF.NS", "APOLLOHOSP.NS", "TATACONSUM.NS",
+    "CHOLAFIN.NS", "PIDILITIND.NS", "DRREDDY.NS", "GAIL.NS", "BOSCHLTD.NS",
+    "ABB.NS", "AMBUJACEM.NS", "INDUSINDBK.NS", "SHRIRAMFIN.NS", "BANKBARODA.NS",
+    "CANBK.NS", "TORNTPHARM.NS", "COLPAL.NS", "UNITDSPR.NS", "POLYCAB.NS",
+    "PNB.NS", "VEDL.NS", "SBILIFE.NS", "HDFCLIFE.NS", "ICICIPRULI.NS",
+    "LODHA.NS", "JINDALSTEL.NS", "LUPIN.NS", "TATAELXSI.NS", "ZYDUSLIFE.NS",
+    "TVSMOTOR.NS", "SRF.NS", "MOTHERSON.NS", "AUROPHARMA.NS", "BERGEPAINT.NS",
+    "NAUKRI.NS", "PERSISTENT.NS", "ASTRAL.NS", "CONCOR.NS", "MUTHOOTFIN.NS",
+    "OFSS.NS", "PFC.NS", "RECLTD.NS", "MAXHEALTH.NS", "TIINDIA.NS",
+    "IDEA.NS", "MRF.NS", "BALKRISIND.NS", "PIIND.NS", "ASHOKLEY.NS",
+    "CUMMINSIND.NS", "IDFCFIRSTB.NS", "GMRINFRA.NS", "NMDC.NS",
 ]
 
 # Initialize persistent active trade tracking memory
@@ -122,13 +43,13 @@ if "active_trades" not in st.session_state:
     st.session_state.active_trades = {}
 
 
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=15)
 def fetch_all_stocks():
-    """Bulk fetch live data for all tickers."""
+    """Bulk fetch live data for all tickers with period='5d' for continuous availability."""
     try:
         data = yf.download(
             tickers=WATCHLIST_100,
-            period="1d",
+            period="5d",
             interval="5m",
             group_by="ticker",
             progress=False,
@@ -184,37 +105,31 @@ if data_batch is not None and not data_batch.empty:
                 # Evaluation for ACTIVE BUY Trade
                 if signal == "BUY":
                     if price >= target:
-                        # Target Hit -> Exit position and revert back to scan
                         del st.session_state.active_trades[clean_ticker]
                         signal = "WAIT"
                         reason = f"🎯 TARGET HIT at ₹{price}! Position Closed."
                         entry, sl, target = price, price, price
                     elif price <= sl:
-                        # Stop Loss Hit -> Exit position and revert back to scan
                         del st.session_state.active_trades[clean_ticker]
                         signal = "WAIT"
                         reason = f"🛑 STOP-LOSS HIT at ₹{price}! Position Closed."
                         entry, sl, target = price, price, price
                     else:
-                        # Trade still active -> Lock state in BUY
                         reason = f"🔒 LOCKED IN BUY | Target: ₹{target} | SL: ₹{sl}"
 
                 # Evaluation for ACTIVE SELL Trade
                 elif signal == "SELL":
                     if price <= target:
-                        # Target Hit -> Exit position
                         del st.session_state.active_trades[clean_ticker]
                         signal = "WAIT"
                         reason = f"🎯 TARGET HIT at ₹{price}! Position Closed."
                         entry, sl, target = price, price, price
                     elif price >= sl:
-                        # Stop Loss Hit -> Exit position
                         del st.session_state.active_trades[clean_ticker]
                         signal = "WAIT"
                         reason = f"🛑 STOP-LOSS HIT at ₹{price}! Position Closed."
                         entry, sl, target = price, price, price
                     else:
-                        # Trade still active -> Lock state in SELL
                         reason = f"🔒 LOCKED IN SELL | Target: ₹{target} | SL: ₹{sl}"
 
             # --- NO ACTIVE TRADE: CHECK FOR NEW BUY/SELL SIGNALS ---
@@ -231,7 +146,6 @@ if data_batch is not None and not data_batch.empty:
                     target = round(entry + (entry - sl) * 2, 2)
                     reason = f"🚀 BUY Triggered! VWAP ₹{vwap}, RVOL {rvol}x."
 
-                    # Lock into active trades state memory
                     st.session_state.active_trades[clean_ticker] = {
                         "Signal": "BUY",
                         "Entry Point": entry,
@@ -247,7 +161,6 @@ if data_batch is not None and not data_batch.empty:
                     target = round(entry - (sl - entry) * 2, 2)
                     reason = f"🔻 SELL Triggered! Break below VWAP ₹{vwap}, RVOL {rvol}x."
 
-                    # Lock into active trades state memory
                     st.session_state.active_trades[clean_ticker] = {
                         "Signal": "SELL",
                         "Entry Point": entry,
@@ -322,7 +235,6 @@ if results:
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Manual reset button to clear locked active trades if needed
     if st.button("🔄 Reset All Locked Active Trades"):
         st.session_state.active_trades = {}
         st.rerun()
